@@ -10,6 +10,14 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Browser and mobile authentication endpoints.
+  - name: visits
+    description: Travel journal visit entries.
+  - name: photos
+    description: Visit photo metadata and galleries.
+  - name: storage
+    description: Object storage upload and serving endpoints.
 paths:
   /healthz:
     get:
@@ -24,7 +32,312 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /auth/user:
+    get:
+      operationId: getCurrentAuthUser
+      tags: [auth]
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+      responses:
+        "200":
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUserEnvelope"
+  /login:
+    get:
+      operationId: beginBrowserLogin
+      tags: [auth]
+      summary: Start the browser login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect to the identity provider.
+  /callback:
+    get:
+      operationId: handleBrowserLoginCallback
+      tags: [auth]
+      summary: Complete the browser login flow
+      responses:
+        "302":
+          description: Redirect to the app after login.
+  /logout:
+    get:
+      operationId: logoutBrowserSession
+      tags: [auth]
+      summary: Clear the browser session
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+        - $ref: "#/components/parameters/SessionCookie"
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "302":
+          description: Redirect after logout.
+  /mobile-auth/token-exchange:
+    post:
+      operationId: exchangeMobileAuthorizationCode
+      tags: [auth]
+      summary: Exchange a mobile authorization code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MobileTokenExchangeRequest"
+      responses:
+        "200":
+          description: Session created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MobileTokenExchangeSuccess"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /mobile-auth/logout:
+    post:
+      operationId: logoutMobileSession
+      tags: [auth]
+      summary: Clear a mobile session
+      parameters:
+        - $ref: "#/components/parameters/AuthorizationSessionHeader"
+      responses:
+        "200":
+          description: Logout processed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutSuccess"
+  /visits:
+    get:
+      operationId: listVisits
+      tags: [visits]
+      summary: List journal visits
+      responses:
+        "200":
+          description: Visit entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Visit"
+    post:
+      operationId: createVisit
+      tags: [visits]
+      summary: Create a journal visit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisitInput"
+      responses:
+        "201":
+          description: Visit created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+        "400":
+          description: Invalid visit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /visits/{id}:
+    get:
+      operationId: getVisit
+      tags: [visits]
+      summary: Get one visit and its photos
+      parameters:
+        - $ref: "#/components/parameters/VisitId"
+      responses:
+        "200":
+          description: Visit entry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitDetail"
+        "404":
+          description: Visit not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    patch:
+      operationId: updateVisit
+      tags: [visits]
+      summary: Update a journal visit
+      parameters:
+        - $ref: "#/components/parameters/VisitId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisitUpdate"
+      responses:
+        "200":
+          description: Visit updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Visit"
+        "400":
+          description: Invalid visit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: Visit not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+    delete:
+      operationId: deleteVisit
+      tags: [visits]
+      summary: Delete a journal visit
+      parameters:
+        - $ref: "#/components/parameters/VisitId"
+      responses:
+        "204":
+          description: Visit deleted.
+        "404":
+          description: Visit not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /visits/{id}/photos:
+    post:
+      operationId: addVisitPhoto
+      tags: [photos]
+      summary: Add uploaded photo metadata to a visit
+      parameters:
+        - $ref: "#/components/parameters/VisitId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoInput"
+      responses:
+        "201":
+          description: Photo added.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Photo"
+        "404":
+          description: Visit not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /photos/{id}:
+    delete:
+      operationId: deletePhoto
+      tags: [photos]
+      summary: Remove a photo from a visit
+      parameters:
+        - $ref: "#/components/parameters/PhotoId"
+      responses:
+        "204":
+          description: Photo deleted.
+        "404":
+          description: Photo not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /journal/summary:
+    get:
+      operationId: getJournalSummary
+      tags: [visits]
+      summary: Get a journal overview
+      responses:
+        "200":
+          description: Journal summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JournalSummary"
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned URL for photo upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "400":
+          description: Invalid upload metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
 components:
+  parameters:
+    VisitId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: number
+        minimum: 1
+    PhotoId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: number
+        minimum: 1
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      schema:
+        type: string
   schemas:
     HealthStatus:
       type: object
@@ -33,4 +346,152 @@ components:
           type: string
       required:
         - status
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, "null"]
+        firstName:
+          type: [string, "null"]
+        lastName:
+          type: [string, "null"]
+        profileImageUrl:
+          type: [string, "null"]
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/AuthUser"
+            - type: "null"
+    MobileTokenExchangeRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code: { type: string, minLength: 1 }
+        code_verifier: { type: string, minLength: 1 }
+        redirect_uri: { type: string, minLength: 1 }
+        state: { type: string, minLength: 1 }
+        nonce: { type: string, minLength: 1 }
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean, const: true }
+    Visit:
+      type: object
+      required: [id, title, location, country, visitDate, description, highlights, travelCompanions, googlePhotosUrl, coverPhotoUrl, photoCount, createdAt, updatedAt]
+      properties:
+        id: { type: number }
+        title: { type: string }
+        location: { type: string }
+        country: { type: string }
+        visitDate: { type: string, format: date }
+        description: { type: string }
+        highlights:
+          type: array
+          items: { type: string }
+        travelCompanions:
+          type: array
+          items: { type: string }
+        googlePhotosUrl: { type: [string, "null"] }
+        coverPhotoUrl: { type: [string, "null"] }
+        photoCount: { type: number }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    VisitDetail:
+      allOf:
+        - $ref: "#/components/schemas/Visit"
+        - type: object
+          required: [photos]
+          properties:
+            photos:
+              type: array
+              items: { $ref: "#/components/schemas/Photo" }
+    VisitInput:
+      type: object
+      required: [title, location, country, visitDate, description]
+      properties:
+        title: { type: string, minLength: 1 }
+        location: { type: string, minLength: 1 }
+        country: { type: string, minLength: 1 }
+        visitDate: { type: string, format: date }
+        description: { type: string }
+        highlights:
+          type: array
+          items: { type: string }
+        travelCompanions:
+          type: array
+          items: { type: string }
+        googlePhotosUrl: { type: [string, "null"] }
+    VisitUpdate:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        location: { type: string, minLength: 1 }
+        country: { type: string, minLength: 1 }
+        visitDate: { type: string, format: date }
+        description: { type: string }
+        highlights:
+          type: array
+          items: { type: string }
+        travelCompanions:
+          type: array
+          items: { type: string }
+        googlePhotosUrl: { type: [string, "null"] }
+    Photo:
+      type: object
+      required: [id, visitId, objectPath, caption, createdAt]
+      properties:
+        id: { type: number }
+        visitId: { type: number }
+        objectPath: { type: string }
+        caption: { type: string }
+        createdAt: { type: string, format: date-time }
+    PhotoInput:
+      type: object
+      required: [objectPath]
+      properties:
+        objectPath: { type: string, minLength: 1 }
+        caption: { type: string }
+    JournalSummary:
+      type: object
+      required: [totalVisits, totalPhotos, countriesVisited, latestVisit]
+      properties:
+        totalVisits: { type: number }
+        totalPhotos: { type: number }
+        countriesVisited: { type: number }
+        latestVisit:
+          oneOf:
+            - $ref: "#/components/schemas/Visit"
+            - type: "null"
+    UploadUrlRequest:
+      type: object
+      required: [name, size, contentType]
+      properties:
+        name: { type: string, minLength: 1 }
+        size: { type: number, minimum: 1 }
+        contentType: { type: string, minLength: 1 }
+    UploadUrlResponse:
+      type: object
+      required: [uploadURL, objectPath]
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
+        metadata:
+          $ref: "#/components/schemas/UploadUrlRequest"
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
 
